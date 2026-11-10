@@ -73,8 +73,8 @@ class PlayoutIntegrationTest {
 				public int onPlaybackData(byte[] audioSamples, int nSamples,
 						int nBytesPerSample, int nChannels, int samplesPerSec) {
 					// This runs on the module's render thread, where a thrown
-					// assertion is lost and even printing fails under Surefire,
-					// so the format is recorded and checked on the test thread.
+					// assertion is lost, so the format is recorded and checked
+					// on the test thread.
 					if (nChannels < 1 || nChannels > 2
 							|| nBytesPerSample != 2 * nChannels
 							|| nSamples * 100 != samplesPerSec) {

@@ -7,8 +7,10 @@
 **/*.iml
 **/.idea
 
-# Maven Build
-**/target
+# Gradle Build
+.gradle/
+**/build/
+!.github/actions/build/
 
 # Linux sysroots downloaded by install-sysroot.py
 webrtc-jni/src/main/cpp/dependencies/webrtc/linux/*-sysroot/

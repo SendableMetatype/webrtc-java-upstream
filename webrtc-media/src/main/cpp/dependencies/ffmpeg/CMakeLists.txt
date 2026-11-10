@@ -25,7 +25,7 @@ if(NOT DEFINED FFMPEG_INSTALL_DIR OR FFMPEG_INSTALL_DIR STREQUAL "")
     message(FATAL_ERROR "FFMPEG_INSTALL_DIR is not set")
 endif()
 
-# It arrives from Maven, where the user's home on Windows is a backslash
+# It arrives from the build, where the user's home on Windows is a backslash
 # path. CMake reads a backslash as the start of an escape, so C:\Users\...
 # is not only the wrong separator, it is a parse error waiting to happen.
 file(TO_CMAKE_PATH "${FFMPEG_INSTALL_DIR}" FFMPEG_INSTALL_DIR)

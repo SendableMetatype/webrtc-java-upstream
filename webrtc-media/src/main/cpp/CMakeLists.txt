@@ -122,7 +122,7 @@ endif()
 
 #
 # Everything that has to end up in the platform jar goes into one directory,
-# which the jar plugin picks up as the classes directory of the natives jar.
+# which the build packs into the natives jar.
 #
 set(NATIVES_DIR "${CMAKE_CURRENT_BINARY_DIR}/../natives")
 

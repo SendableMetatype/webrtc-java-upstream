@@ -106,6 +106,6 @@ in `src/main/resources/META-INF/native-image/<group>/<artifact>/reflect-config.j
 The [`NativeImageExample`](https://github.com/devopvoid/webrtc-java/blob/master/webrtc-examples/src/main/java/dev/onvoid/webrtc/examples/NativeImageExample.java) connects two peers in one process and checks that video, audio, data channel messages, statistics and log messages arrive. It exits with status 0 only if they all did, and builds with `--exact-reachability-metadata`, which needs GraalVM 24 or later:
 
 ```shell
-mvn -pl webrtc-examples -Pnative package
-webrtc-examples/target/webrtc-native-image-example
+./gradlew :webrtc-examples:nativeCompile
+webrtc-examples/build/native/nativeCompile/webrtc-native-image-example
 ```

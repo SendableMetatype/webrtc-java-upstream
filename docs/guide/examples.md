@@ -1,6 +1,6 @@
 # Examples
 
-This section provides an overview of the example applications included in the `webrtc-examples` Maven module. These examples demonstrate various features and capabilities of the webrtc-java library.
+This section provides an overview of the example applications included in the `webrtc-examples` module. These examples demonstrate various features and capabilities of the webrtc-java library.
 
 ## Client API
 
@@ -19,7 +19,7 @@ The [`ClientApiExample`](https://github.com/devopvoid/webrtc-java/blob/master/we
 This example is the shortest way to see a complete call working, and a starting point for applications built on the client API.
 
 ```bash
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.ClientApiExample" -D"exec.args=10"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.ClientApiExample" --args="10"
 ```
 
 ## Native Image
@@ -35,8 +35,8 @@ The [`NativeImageExample`](https://github.com/devopvoid/webrtc-java/blob/master/
 Build it with GraalVM 24 or later as `JAVA_HOME`, then run it:
 
 ```bash
-mvn -pl webrtc-examples -Pnative package
-webrtc-examples/target/webrtc-native-image-example
+./gradlew :webrtc-examples:nativeCompile
+webrtc-examples/build/native/nativeCompile/webrtc-native-image-example
 ```
 
 ## File Transfer
@@ -52,7 +52,7 @@ The [`FileTransferExample`](https://github.com/devopvoid/webrtc-java/blob/master
 Pass a file to send, or a size in MiB for a file of random data, 20 by default:
 
 ```bash
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.FileTransferExample" -D"exec.args=50"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.FileTransferExample" --args="50"
 ```
 
 ## PeerConnection
@@ -70,7 +70,7 @@ The [`PeerConnectionExample`](https://github.com/devopvoid/webrtc-java/blob/mast
 This example provides a foundation for building WebRTC applications that need to handle audio and video communication. Press Enter to end the call:
 
 ```bash
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.PeerConnectionExample"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.PeerConnectionExample"
 ```
 
 ## WHEP
@@ -85,7 +85,7 @@ The [`WhepExample`](https://github.com/devopvoid/webrtc-java/blob/master/webrtc-
 This example is useful for applications that need to receive media streams from WHEP-compatible servers, such as live streaming platforms. The endpoint and the number of seconds to receive are optional:
 
 ```bash
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.WhepExample" -D"exec.args=http://localhost:8889/mystream/whep 10"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.WhepExample" --args="http://localhost:8889/mystream/whep 10"
 ```
 
 ## Codec List
@@ -113,8 +113,8 @@ The [`DesktopVideoExample`](https://github.com/devopvoid/webrtc-java/blob/master
 This example is particularly useful for applications that need to implement screen sharing or remote desktop functionality. It shares the first screen, or the first window with `window`. Under Wayland, the system asks which one to share instead.
 
 ```bash
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.DesktopVideoExample"
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.DesktopVideoExample" -D"exec.args=window"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.DesktopVideoExample"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.DesktopVideoExample" --args="window"
 ```
 
 ## System Audio
@@ -129,7 +129,7 @@ The [`SystemAudioExample`](https://github.com/devopvoid/webrtc-java/blob/master/
 Play audio in another application while it runs, and press Enter to stop. On macOS, grant screen and audio recording permission when asked.
 
 ```bash
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.SystemAudioExample"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.SystemAudioExample"
 ```
 
 ## Screen Share with Audio
@@ -145,7 +145,7 @@ The [`ScreenShareAudioExample`](https://github.com/devopvoid/webrtc-java/blob/ma
 Each audio sender gets the audio of its own track, so the microphone keeps its echo cancellation and the system output is sent as it plays. Play audio in another application and speak into the microphone while it runs, and press Enter to stop.
 
 ```bash
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.ScreenShareAudioExample"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.ScreenShareAudioExample"
 ```
 
 ## Media File
@@ -166,8 +166,8 @@ This example is useful for applications that stream pre-recorded media, relay an
 This example needs the `webrtc-java-media` module, which builds FFmpeg from the `third-party/ffmpeg` submodule. Make sure the submodule is checked out before building, as the [Media Files](/guide/media/media-files) guide describes.
 
 ```bash
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.MediaFileExample" -D"exec.args=movie.mp4"
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.MediaFileExample" -D"exec.args=rtsp://camera.local/stream1"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.MediaFileExample" --args="movie.mp4"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.MediaFileExample" --args="rtsp://camera.local/stream1"
 ```
 :::
 
@@ -191,7 +191,7 @@ The [`MediaFilePlayerExample`](https://github.com/devopvoid/webrtc-java/blob/mas
 Like the [Media File](#media-file) example, this one needs the `webrtc-java-media` module. The source argument is optional; a file can also be chosen from the window, or a stream URL typed into it. A stream URL's credentials are never shown, and the Loop box is disabled while a live stream plays, since it has no length to start over from.
 
 ```bash
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.MediaFilePlayerExample" -D"exec.args=movie.mp4"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.MediaFilePlayerExample" --args="movie.mp4"
 ```
 :::
 
@@ -208,7 +208,7 @@ The [`JavaFxCameraExample`](https://github.com/devopvoid/webrtc-java/blob/master
 - Closing the runtime off the JavaFX thread before JavaFX exits
 
 ```bash
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.JavaFxCameraExample"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.JavaFxCameraExample"
 ```
 
 ## Encrypted Recording
@@ -225,7 +225,7 @@ The [`EncryptedRecordingExample`](https://github.com/devopvoid/webrtc-java/blob/
 Like the [Media File](#media-file) example, this one needs the `webrtc-java-media` module. The output file is optional; its extension picks the container.
 
 ```bash
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.EncryptedRecordingExample" -D"exec.args=call.mkv"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.EncryptedRecordingExample" --args="call.mkv"
 ```
 :::
 
@@ -248,7 +248,7 @@ Before running the `WebClientExample`, you need to start the `WebServer` first. 
 :::
 
 ```bash
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.web.server.WebServer"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.web.server.WebServer"
 ```
 
 And the browser client is reachable at this url: `https://localhost:8443`
@@ -256,19 +256,19 @@ And the browser client is reachable at this url: `https://localhost:8443`
 
 ## Running the Examples
 
-To run these examples, you need to navigate into the directory `webrtc-java/webrtc-example` in the project.
-You can then execute the main method of each example class.
+To run these examples, use the `run` task of the `webrtc-examples` module from the root directory of the project.
+It takes the example class as the `mainClass` property and the arguments of the example, if any, as `--args`.
 
 For example, to run the `CodecListExample`:
 
 ```bash
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.CodecListExample"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.CodecListExample"
 ```
 
 Or to run the `WebClientExample`:
 
 ```bash
-mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.web.WebClientExample"
+./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.web.WebClientExample"
 ```
 
 Note that these examples focus on setting up the local components for WebRTC communication. In a real application, you would need to establish a connection with a remote peer through a signaling channel (e.g., WebSocket). The `WebClientExample` demonstrates this by connecting to a signaling server.

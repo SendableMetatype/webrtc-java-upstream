@@ -10,10 +10,9 @@ You don't have to install Chromium's `depot_tools`, Siso or GN: the build clones
 
 | Tool                  | Notes                                                                                     |
 | --------------------- | ----------------------------------------------------------------------------------------- |
-| JDK 17 or newer       | The libraries target Java 11, and the examples need 17.                                   |
-| Maven 3.9.6 or newer  | Needed by the native builds' CMake plugin. The build checks it, and the JDK, first.       |
+| JDK 17 or newer       | Runs Gradle, which the wrapper downloads. The libraries target Java 11, the examples 17.  |
 | Git                   | Clones `depot_tools`, the WebRTC sources and the submodules.                              |
-| CMake 3.13 or newer   | Must be on the `PATH`. The Maven build does not download it.                              |
+| CMake 3.13 or newer   | Must be on the `PATH`. The build does not download it.                                    |
 | Python 3              | Runs `depot_tools` and the Linux sysroot script. On macOS it also needs `setuptools`.     |
 | Meson and Ninja       | Build dav1d, the AV1 software decoder linked into FFmpeg (`pip install meson`).           |
 | Disk space            | About 15 GB for the WebRTC checkout and its toolchains, kept in `~/webrtc` by default.   |
@@ -32,7 +31,7 @@ Linux builds run on an x86-64 host and cross-compile for ARM. Install the build 
 sudo apt-get install binutils cmake git libva-dev make meson nasm ninja-build pkg-config python3 python3-setuptools rsync unzip wget xz-utils
 ```
 
-`libva-dev` provides the VA-API headers FFmpeg is built against, for every target architecture, cross builds included. Only the headers are used: FFmpeg is linked against a small loader in `webrtc-media/src/main/cpp/dependencies/libva` instead of libva itself, so the libraries load on machines without libva. Set `-DLIBVA_INCLUDE_DIR=<dir>` (the directory holding `va/`) for headers somewhere other than `/usr/include` or `/usr/local/include`.
+`libva-dev` provides the VA-API headers FFmpeg is built against, for every target architecture, cross builds included. Only the headers are used: FFmpeg is linked against a small loader in `webrtc-media/src/main/cpp/dependencies/libva` instead of libva itself, so the libraries load on machines without libva. For headers somewhere other than `/usr/include` or `/usr/local/include`, build with `-P"cmake.options=-DLIBVA_INCLUDE_DIR=<dir>"`, where `<dir>` is the directory holding `va/`.
 
 The JNI library compiles against the libc++ headers of the WebRTC build. Those headers only support the Clang that the WebRTC branch pins, so the toolchain files expect that exact Clang in `/opt/clang`. Install it this way (the package name is in `.github/actions/prepare-linux/action.yml` and changes with the WebRTC branch):
 
@@ -51,7 +50,7 @@ sudo mkdir -p /opt/sysroot
 sudo mv webrtc-jni/src/main/cpp/dependencies/webrtc/linux/debian* /opt/sysroot/
 ```
 
-To cross-compile for ARM, CI also installs `gcc-aarch64-linux-gnu g++-aarch64-linux-gnu` (`-Plinux-aarch64`) or `gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf` (`-Plinux-aarch32`).
+To cross-compile for ARM, CI also installs `gcc-aarch64-linux-gnu g++-aarch64-linux-gnu` (`-P"webrtc.platform=linux-aarch64"`) or `gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf` (`-P"webrtc.platform=linux-aarch32"`).
 
 Running the tests requires the runtime libraries the native library links against. A desktop system already has them. On a headless one, install them with:
 
@@ -68,11 +67,11 @@ sudo apt-get install libx11-6 libxext6 libxfixes3 libxdamage1 libxtst6 libxrandr
 brew install cmake nasm meson ninja pkgconf python-setuptools
 ```
 
-`nasm` is needed for the x86-64 build (`-Pmacos-cross-x86_64`), including when you cross-compile from Apple Silicon.
+`nasm` is needed for the x86-64 build (`-P"webrtc.platform=macos-x86_64"`), including when you cross-compile from Apple Silicon.
 
 ### Windows
 
-- **Visual Studio 2022** with the *Desktop development with C++* workload. The build uses this local installation, not Google's internal toolchain. Add *MSVC ARM64 build tools* to build for `windows-aarch64`, and *C++ Clang tools for Windows* to build with `-Pwindows-clang`.
+- **Visual Studio 2022** with the *Desktop development with C++* workload. The build uses this local installation, not Google's internal toolchain. Add *C++ Clang tools for Windows*, which compile the JNI library, and *MSVC ARM64 build tools* to build for `windows-aarch64`.
 - **Windows SDK 10.0.28000.0**, this exact version. The WebRTC branch pins it, and `gn gen` fails without it. Install it with the *Debugging Tools for Windows* feature, because the toolchain setup needs `dbghelp.dll`. A different WebRTC branch may pin a different SDK (`SDK_VERSION` in `build/vs_toolchain.py`).
 - **MSYS2**, installed in `C:\msys64` (set `MSYS2_ROOT` for another location). FFmpeg's configure scripts and makefiles need a POSIX shell with `make` and `nasm`. Git for Windows' bash has neither.
 
@@ -83,25 +82,37 @@ brew install cmake nasm meson ninja pkgconf python-setuptools
 
 - **Ninja and Meson** on the `PATH`, e.g. `choco install ninja` and `pip install meson`.
 
-Run Maven from an ordinary command prompt or PowerShell. The build sets up the MSYS2 shell and the Visual Studio environment itself.
+Run Gradle from an ordinary command prompt or PowerShell, as `gradlew` in a command prompt and `./gradlew` in PowerShell. The build sets up the MSYS2 shell and the Visual Studio environment itself.
 
 ## Building
 
 With the prerequisites installed, run:
 
 ```shell
-mvn install
+./gradlew build
 ```
 
-On the first run, the WebRTC source tree is loaded into the `/<user home>/webrtc` directory, and FFmpeg and dav1d are built into `/<user home>/ffmpeg`. This takes a long time. Later builds reuse both as long as their configuration is unchanged. To build the native libraries without running the tests, use `mvn package -DskipTests`, as CI does.
+On the first run, the WebRTC source tree is loaded into the `/<user home>/webrtc` directory, and FFmpeg and dav1d are built into `/<user home>/ffmpeg`. This takes a long time. Later builds reuse both as long as their configuration is unchanged. To build the native libraries without running the tests, use `./gradlew assemble testClasses`, as CI does.
+
+To use the build in another project, install it into the local Maven repository:
+
+```shell
+./gradlew publishToMavenLocal
+```
 
 ## Build Parameters
+
+Build parameters are Gradle project properties, for example `./gradlew assemble -P"webrtc.platform=linux-aarch64"`. The quotes keep PowerShell from splitting the argument at the dot. A build for another platform stops at `assemble`: the tests load the native libraries of the machine they run on.
 
 | Parameter          | Description                                            | Default Value               |
 | ------------------ | ------------------------------------------------------ |-----------------------------|
 | webrtc.branch      | The WebRTC branch to checkout.                         | branch-heads/8059           |
 | webrtc.src.dir     | The absolute checkout path for the WebRTC source tree. | /\<user_home\>/webrtc       |
 | webrtc.install.dir | The install path for the compiled WebRTC library. Is also used to link against a pre-compiled WebRTC library to reduce build time. | /\<user_home\>/webrtc/build |
+| webrtc.platform    | The platform to build the native libraries for: `windows-x86_64`, `windows-aarch64`, `linux-x86_64`, `linux-aarch64`, `linux-aarch32`, `macos-x86_64` or `macos-aarch64`. | The platform of the build machine |
+| natives.dir        | A directory with native library jars built elsewhere, `webrtc-java-<version>-<platform>.jar` and `webrtc-java-media-<version>-<platform>.jar`. The native build is skipped, the tests run against the jars of `webrtc.platform`, and a publication attaches the jars of every platform. | Not set |
+| cmake.options      | One more argument for the CMake configuration of the native builds, such as `-DLIBVA_INCLUDE_DIR=<dir>`. | Not set |
+| jni-check          | Set it to run the tests under `-Xcheck:jni`, which checks every JNI call of the native libraries. | Not set |
 
 ## WebRTC patches and cached builds
 
@@ -118,14 +129,14 @@ caches, so a native rebuild also includes the updated patches.
 
 Maintainers start **Prepare release** (`release.yml`) from `main`, providing the
 next development version, such as `0.16.0-SNAPSHOT`, and optionally the version
-to release, such as `0.15.0`. Without one, the release takes the root pom's
-version without `-SNAPSHOT`. Preparation commits the changelog and version
+to release, such as `0.15.0`. Without one, the release takes the version of
+`gradle.properties` without `-SNAPSHOT`. Preparation commits the changelog and version
 changes and atomically pushes `main` and the release tag. It then dispatches **Publish release** (`release-publish.yml`) on that tag using
 `GITHUB_TOKEN` with `actions: write`; no additional token is needed. A push made
 with `GITHUB_TOKEN` does not trigger a tag push workflow on its own.
 
 Publication requires a `vX.Y.Z` tag whose commit belongs to `main` and whose
-version matches the root pom. All platform builds, native tests and publication
+version matches `gradle.properties`. All platform builds, native tests and publication
 jobs check out the triggering commit SHA. After testing every platform, the
 workflow publishes one Maven Central bundle and creates a draft GitHub release.
 
@@ -135,12 +146,11 @@ it as `deployment-bundle-dry-run`. It pushes no commits or tags, dispatches no
 publication workflow, and uses placeholder Central credentials with uploads
 disabled.
 
-The jars are reproducible: every entry and the manifest's `Build-Date` carry
-`project.build.outputTimestamp` from the root pom instead of the time of the
-build, so the same commit builds into the same Java jars. Release preparation
-sets it to the time of the release commit and again for the next development
-version; it needs no manual change. The native library jars are not covered,
-since CMake and the compilers do not build byte for byte the same libraries.
+The Java jars are reproducible: Gradle writes their entries in a fixed order
+with fixed times, and the manifest's `Build-Date` is the time of the commit
+instead of the time of the build, so the same commit builds into the same
+Java jars. The native library jars are not covered, since CMake and the
+compilers do not build byte for byte the same libraries.
 
 If preparation pushed the tag but dispatch failed, start Publish release manually
 and select that tag. Before retrying a failed publication, check whether Maven

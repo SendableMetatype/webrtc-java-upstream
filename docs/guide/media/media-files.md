@@ -19,7 +19,7 @@ The module is part of the normal build, and it builds FFmpeg and dav1d (the soft
 
 ```shell
 git submodule update --init --depth 1 webrtc-media/third-party/ffmpeg webrtc-media/third-party/dav1d
-mvn install
+./gradlew publishToMavenLocal
 ```
 
 Building FFmpeg needs `make` and `nasm`, and building dav1d needs [Meson](https://mesonbuild.com) (`pip install meson`) and Ninja. On Windows `make` and `nasm` come from MSYS2:
@@ -29,7 +29,7 @@ winget install MSYS2.MSYS2
 C:\msys64\usr\bin\bash -lc "pacman -S --needed make nasm diffutils pkgconf"
 ```
 
-Maven still runs from an ordinary shell; the build enters MSYS2 and the Visual Studio environment on its own. The first build compiles FFmpeg and dav1d, which takes a while; later builds reuse the install directory.
+Gradle still runs from an ordinary shell; the build enters MSYS2 and the Visual Studio environment on its own. The first build compiles FFmpeg and dav1d, which takes a while; later builds reuse the install directory.
 
 Once installed, depend on it alongside `webrtc-java`. It takes two entries: one for the Java API, and one for the natives of the platform you are running on.
 
@@ -310,5 +310,5 @@ Some of the formats FFmpeg decodes, such as H.264, H.265/HEVC and AAC, may be co
 See `MediaFileExample` in the `webrtc-examples` module, which opens a file, reports what it contains, sends its tracks from one [Client API](/guide/client-api) peer to another and follows playback to the end.
 
 ```shell
-mvn -pl webrtc-examples compile
+./gradlew :webrtc-examples:classes
 ```

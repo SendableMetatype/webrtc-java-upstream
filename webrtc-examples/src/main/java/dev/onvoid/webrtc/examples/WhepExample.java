@@ -42,7 +42,7 @@ import dev.onvoid.webrtc.client.Whep;
  * <p>
  * Run it against a WHEP endpoint, such as one of MediaMTX, for a number of seconds:
  * <pre>
- * mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.WhepExample" -D"exec.args=http://localhost:8889/mystream/whep 10"
+ * ./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.WhepExample" --args="http://localhost:8889/mystream/whep 10"
  * </pre>
  *
  * @see <a href="https://www.rfc-editor.org/rfc/rfc9725">WHEP and WHIP</a>

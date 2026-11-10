@@ -48,7 +48,7 @@ import dev.onvoid.webrtc.client.transfer.OutgoingTransfer;
  * <p>
  * Pass a file to send, or a size in MiB for a file of random data, 20 by default:
  * <pre>
- * mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.FileTransferExample" -D"exec.args=50"
+ * ./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.FileTransferExample" --args="50"
  * </pre>
  *
  * @author Alex Andres

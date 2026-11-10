@@ -63,7 +63,7 @@ has to be present:
 
 ```shell
 git submodule update --init --depth 1 webrtc-media/third-party/ffmpeg webrtc-media/third-party/dav1d
-mvn install
+./gradlew build
 ```
 
 The first build compiles FFmpeg, which takes a while; later builds reuse the install directory
@@ -81,5 +81,5 @@ dav1d, the software decoder of AV1, is built first and linked into FFmpeg. Build
 and Ninja (`pip install meson`, with `meson` on the `PATH`; `ninja` is there for the WebRTC build
 already).
 
-Maven still runs from an ordinary shell. The build enters MSYS2 and the Visual Studio environment
+Gradle still runs from an ordinary shell. The build enters MSYS2 and the Visual Studio environment
 on its own, because FFmpeg's configure needs a POSIX shell that can also see `cl` and `link`.

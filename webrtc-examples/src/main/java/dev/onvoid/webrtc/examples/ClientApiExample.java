@@ -59,7 +59,7 @@ import dev.onvoid.webrtc.media.video.VideoFrame;
  * <p>
  * Run it for a number of seconds, five by default:
  * <pre>
- * mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.ClientApiExample" -D"exec.args=10"
+ * ./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.ClientApiExample" --args="10"
  * </pre>
  *
  * @author Alex Andres

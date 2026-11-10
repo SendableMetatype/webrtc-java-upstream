@@ -62,7 +62,7 @@ import dev.onvoid.webrtc.media.video.desktop.DesktopSource;
  * example and press Enter to stop. On macOS, grant screen and audio recording
  * permission when asked:
  * <pre>
- * mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.ScreenShareAudioExample"
+ * ./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.ScreenShareAudioExample"
  * </pre>
  *
  * @author Alex Andres

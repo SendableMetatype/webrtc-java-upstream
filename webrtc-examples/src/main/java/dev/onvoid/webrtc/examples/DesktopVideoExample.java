@@ -57,8 +57,8 @@ import dev.onvoid.webrtc.media.video.desktop.DesktopSource;
  * Run it to share the first screen, or with {@code window} to share the first window, and press
  * Enter to stop:
  * <pre>
- * mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.DesktopVideoExample"
- * mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.DesktopVideoExample" -D"exec.args=window"
+ * ./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.DesktopVideoExample"
+ * ./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.DesktopVideoExample" --args="window"
  * </pre>
  *
  * @author Alex Andres

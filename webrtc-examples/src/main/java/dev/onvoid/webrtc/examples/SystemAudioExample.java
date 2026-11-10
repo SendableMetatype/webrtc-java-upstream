@@ -40,7 +40,7 @@ import dev.onvoid.webrtc.media.audio.SystemAudioSource;
  * <p>
  * Play audio in another application, run this example, and press Enter to stop:
  * <pre>
- * mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.SystemAudioExample"
+ * ./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.SystemAudioExample"
  * </pre>
  *
  * @author Alex Andres

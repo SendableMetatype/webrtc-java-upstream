@@ -64,7 +64,7 @@ import dev.onvoid.webrtc.media.video.VideoDevice;
  * <p>
  * Run it with a camera connected:
  * <pre>
- * mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.JavaFxCameraExample"
+ * ./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.JavaFxCameraExample"
  * </pre>
  *
  * @author Alex Andres

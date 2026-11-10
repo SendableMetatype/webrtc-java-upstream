@@ -52,7 +52,7 @@ import dev.onvoid.webrtc.client.WebRtc;
  * <p>
  * Run it, and press Enter to end the call:
  * <pre>
- * mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.PeerConnectionExample"
+ * ./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.PeerConnectionExample"
  * </pre>
  *
  * @author Alex Andres

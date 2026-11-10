@@ -59,12 +59,12 @@ import dev.onvoid.webrtc.media.video.VideoFrame;
  * <p>
  * Build the image and run it, with a GraalVM as {@code JAVA_HOME}:
  * <pre>
- * mvn -pl webrtc-examples -Pnative package
- * webrtc-examples/target/webrtc-native-image-example
+ * ./gradlew :webrtc-examples:nativeCompile
+ * webrtc-examples/build/native/nativeCompile/webrtc-native-image-example
  * </pre>
  * It runs on the JVM as well:
  * <pre>
- * mvn exec:java -D"exec.mainClass=dev.onvoid.webrtc.examples.NativeImageExample"
+ * ./gradlew :webrtc-examples:run -P"mainClass=dev.onvoid.webrtc.examples.NativeImageExample"
  * </pre>
  *
  * @author Alex Andres

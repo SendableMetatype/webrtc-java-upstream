@@ -84,7 +84,7 @@ jobs:
             if [ "$BASE_REF" == "main" ]; then next="HEAD"; else stable="HEAD"; fi
           fi
 
-          snapshot=$(git show "$next:pom.xml" | sed -n '0,/<version>/s|.*<version>\([^<]*\)</version>.*|\1|p')
+          snapshot=$(git show "$next:gradle.properties" | sed -n 's/^version=//p')
 
           echo "Latest release: $version, built from $stable; unreleased: $snapshot, built from $next"
           {

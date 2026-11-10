@@ -1,4 +1,4 @@
-name: 'Maven Build'
+name: 'Gradle Build'
 
 description: 'Build the native libraries of one platform and upload them as artifacts'
 
@@ -7,8 +7,13 @@ inputs:
     description: 'The target platform.'
     required: true
 
-  profile:
-    description: 'The Maven profile that selects a cross compiled classifier. Empty for the runner''s own.'
+  platform:
+    description: 'The classifier of a cross compiled platform. Empty for the runner''s own.'
+    required: false
+    default: ''
+
+  version:
+    description: 'The project version to build with, when not the one gradle.properties sets.'
     required: false
     default: ''
 
@@ -25,8 +30,8 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Derive the WebRTC cache branch from the pom
-      run: echo "WEBRTC_CACHE_BRANCH=$(sed -n 's|.*<webrtc.branch>branch-heads/\([^<]*\)</webrtc.branch>.*|\1|p' webrtc-jni/pom.xml)" >> "$GITHUB_ENV"
+    - name: Derive the WebRTC cache branch from the build properties
+      run: echo "WEBRTC_CACHE_BRANCH=$(sed -n 's|^webrtc.branch=branch-heads/||p' gradle.properties)" >> "$GITHUB_ENV"
       shell: bash
 
     # Restored here, saved right after the build below: the post step of
@@ -38,11 +43,11 @@ runs:
       uses: actions/cache/restore@v6
       with:
         path: ~/${{ env.WEBRTC_INSTALL_FOLDER }}
-        key: webrtc-${{ env.WEBRTC_CACHE_BRANCH }}-${{ inputs.platform-name }}-${{ hashFiles('webrtc-jni/src/main/cpp/dependencies/webrtc/CMakeLists.txt', 'webrtc-jni/src/main/cpp/dependencies/webrtc/patches/**/*.patch') }}-${{ hashFiles('webrtc-jni/pom.xml') }}
+        key: webrtc-${{ env.WEBRTC_CACHE_BRANCH }}-${{ inputs.platform-name }}-${{ hashFiles('webrtc-jni/src/main/cpp/dependencies/webrtc/CMakeLists.txt', 'webrtc-jni/src/main/cpp/dependencies/webrtc/patches/**/*.patch') }}-${{ hashFiles('webrtc-jni/build.gradle.kts') }}
         restore-keys: webrtc-${{ env.WEBRTC_CACHE_BRANCH }}-${{ inputs.platform-name }}-${{ hashFiles('webrtc-jni/src/main/cpp/dependencies/webrtc/CMakeLists.txt', 'webrtc-jni/src/main/cpp/dependencies/webrtc/patches/**/*.patch') }}-
 
-    - name: Derive the FFmpeg version from the pom
-      run: echo "FFMPEG_VERSION=$(sed -n 's|.*<ffmpeg.version>\([^<]*\)</ffmpeg.version>.*|\1|p' webrtc-media/pom.xml)" >> "$GITHUB_ENV"
+    - name: Derive the FFmpeg version from the build properties
+      run: echo "FFMPEG_VERSION=$(sed -n 's|^ffmpeg.version=||p' gradle.properties)" >> "$GITHUB_ENV"
       shell: bash
 
     - id: ffmpeg-cache
@@ -50,20 +55,8 @@ runs:
       uses: actions/cache/restore@v6
       with:
         path: ~/ffmpeg
-        key: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ inputs.platform-name }}-${{ hashFiles('webrtc-media/src/main/cpp/dependencies/ffmpeg/CMakeLists.txt', 'webrtc-media/src/main/cpp/dependencies/ffmpeg/patches/*.patch', 'webrtc-media/src/main/cpp/dependencies/libva/*') }}-${{ hashFiles('webrtc-media/pom.xml') }}
+        key: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ inputs.platform-name }}-${{ hashFiles('webrtc-media/src/main/cpp/dependencies/ffmpeg/CMakeLists.txt', 'webrtc-media/src/main/cpp/dependencies/ffmpeg/patches/*.patch', 'webrtc-media/src/main/cpp/dependencies/libva/*') }}-${{ hashFiles('webrtc-media/build.gradle.kts') }}
         restore-keys: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ inputs.platform-name }}-${{ hashFiles('webrtc-media/src/main/cpp/dependencies/ffmpeg/CMakeLists.txt', 'webrtc-media/src/main/cpp/dependencies/ffmpeg/patches/*.patch', 'webrtc-media/src/main/cpp/dependencies/libva/*') }}-
-
-    # One cache per OS: the dependencies do not differ between the platforms of
-    # an OS. The project's own artifacts change with every build and stay out
-    # of it.
-    - name: Set up Maven cache
-      uses: actions/cache@v6
-      with:
-        path: |
-          ~/.m2/repository
-          !~/.m2/repository/dev/onvoid/webrtc
-        key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
-        restore-keys: maven-${{ runner.os }}-
 
     - name: Set up JDK ${{ inputs.java-version }}
       uses: actions/setup-java@v6
@@ -71,10 +64,19 @@ runs:
         java-version: ${{ inputs.java-version }}
         distribution: 'temurin'
 
+    # Also caches the Gradle distribution and the dependencies.
+    - name: Set up Gradle
+      uses: gradle/actions/setup-gradle@v6
+
+    # The tests are compiled here, also those of the JavaFX module, which no
+    # lane runs. They run in test-natives, against the uploaded jars. The
+    # native library jars are named after the version, which the tests and the
+    # publication look them up by.
     - name: Build
       env:
-        PROFILE: ${{ inputs.profile }}
-      run: mvn -B package -DskipTests ${PROFILE:+-P$PROFILE}
+        PLATFORM: ${{ inputs.platform }}
+        VERSION: ${{ inputs.version }}
+      run: ./gradlew assemble testClasses ${PLATFORM:+-Pwebrtc.platform=$PLATFORM} ${VERSION:+-Pversion=$VERSION}
       shell: bash
 
     - name: Save WebRTC cache
@@ -100,7 +102,7 @@ runs:
       uses: actions/upload-artifact@v7
       with:
         name: natives-${{ inputs.platform-name }}
-        path: webrtc-jni/target/webrtc-java-*.jar
+        path: webrtc-jni/build/libs/webrtc-java-*.jar
         if-no-files-found: error
         retention-days: ${{ inputs.retention-days }}
         overwrite: true
@@ -112,9 +114,9 @@ runs:
       with:
         name: natives-media-${{ inputs.platform-name }}
         path: |
-          webrtc-media/target/webrtc-java-media-*-windows-*.jar
-          webrtc-media/target/webrtc-java-media-*-linux-*.jar
-          webrtc-media/target/webrtc-java-media-*-macos-*.jar
+          webrtc-media/build/libs/webrtc-java-media-*-windows-*.jar
+          webrtc-media/build/libs/webrtc-java-media-*-linux-*.jar
+          webrtc-media/build/libs/webrtc-java-media-*-macos-*.jar
         if-no-files-found: error
         retention-days: ${{ inputs.retention-days }}
         overwrite: true

@@ -23,7 +23,7 @@ on:
         default: 1
 
 env:
-  # The default webrtc.install.dir of webrtc-jni/pom.xml, below the home directory.
+  # The default webrtc.install.dir of the build, below the home directory.
   WEBRTC_INSTALL_FOLDER: webrtc/build
 
 jobs:
@@ -32,31 +32,31 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # profile: the Maven profile that selects a cross compiled classifier;
-        #   empty when the classifier is the runner's own. The macOS Intel
-        #   build runs on Apple Silicon and cross compiles.
+        # classifier: the classifier of a cross compiled platform; empty when
+        #   the platform is the runner's own. The macOS Intel build runs on
+        #   Apple Silicon and cross compiles.
         platform:
           - name: windows_x86_64
             runs-on: windows-2022
-            profile: ''
+            classifier: ''
           - name: windows_arm64
             runs-on: windows-2022
-            profile: windows-aarch64
+            classifier: windows-aarch64
           - name: linux_x86-64
             runs-on: ubuntu-22.04
-            profile: ''
+            classifier: ''
           - name: linux_arm64
             runs-on: ubuntu-22.04
-            profile: linux-aarch64
+            classifier: linux-aarch64
           - name: linux_arm
             runs-on: ubuntu-22.04
-            profile: linux-aarch32
+            classifier: linux-aarch32
           - name: macos_arm64
             runs-on: macos-15
-            profile: ''
+            classifier: ''
           - name: macos_x86-64
             runs-on: macos-15
-            profile: macos-cross-x86_64
+            classifier: macos-x86_64
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
       - name: Checkout code
@@ -78,18 +78,12 @@ jobs:
         if: runner.os == 'macOS'
         uses: ./.github/actions/prepare-macos
 
-      - name: Set the release dry-run version
-        if: inputs.version != ''
-        env:
-          RELEASE_VERSION: ${{ inputs.version }}
-        run: mvn -B versions:set -DnewVersion="$RELEASE_VERSION" -DgenerateBackupPoms=false
-        shell: bash
-
-      - name: Maven build
+      - name: Gradle build
         uses: ./.github/actions/build
         with:
           platform-name: ${{ matrix.platform.name }}
-          profile: ${{ matrix.platform.profile }}
+          platform: ${{ matrix.platform.classifier }}
+          version: ${{ inputs.version }}
           retention-days: ${{ inputs.retention-days }}
 
   # Every platform is tested on a runner of its own OS and architecture,
@@ -153,7 +147,6 @@ jobs:
         with:
           platform-name: ${{ matrix.platform.name }}
           classifier: ${{ matrix.platform.classifier }}
-          profile: ${{ matrix.platform.classifier }}
           java-distribution: ${{ matrix.platform.java-distribution }}
           java-architecture: ${{ matrix.platform.java-architecture }}
           version: ${{ inputs.version }}
@@ -193,7 +186,6 @@ jobs:
         with:
           platform-name: ${{ matrix.platform.name }}
           classifier: ${{ matrix.platform.classifier }}
-          profile: ${{ matrix.platform.classifier }}
           java-distribution: temurin
           version: ${{ inputs.version }}
           jni-check: 'true'
@@ -221,12 +213,6 @@ jobs:
           name: natives-linux_x86-64
           path: natives
 
-      - name: Download media natives
-        uses: actions/download-artifact@v8
-        with:
-          name: natives-media-linux_x86-64
-          path: natives
-
       - name: Install runtime libraries
         run: |
           sudo apt-get update
@@ -241,38 +227,15 @@ jobs:
           java-version: '25'
           distribution: 'graalvm'
 
-      - name: Set the release dry-run version
-        if: inputs.version != ''
-        env:
-          RELEASE_VERSION: ${{ inputs.version }}
-        run: mvn -B versions:set -DnewVersion="$RELEASE_VERSION" -DgenerateBackupPoms=false
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
 
-      # The example resolves the libraries from the local repository, natives
-      # included, as an application does. webrtc attaches its natives from
-      # webrtc-jni/target and needs them installed beforehand, since it depends
-      # on them itself; webrtc-media packages its own from target/natives.
-      - name: Install the libraries with the natives
-        run: |
-          VERSION=$(sed -n 's|.*<version>\([^<]*\)</version>.*|\1|p' pom.xml | head -n 1)
-          WEBRTC_JAR=$(find natives -name 'webrtc-java-*-linux-x86_64.jar' ! -name 'webrtc-java-media-*' | head -n 1)
-          MEDIA_JAR=$(find natives -name 'webrtc-java-media-*-linux-x86_64.jar' | head -n 1)
-
-          if [ -z "$VERSION" ] || [ -z "$WEBRTC_JAR" ] || [ -z "$MEDIA_JAR" ]; then
-            echo "Missing the version ($VERSION) or a native jar ($WEBRTC_JAR, $MEDIA_JAR)" >&2
-            exit 1
-          fi
-
-          mvn -B -q install:install-file -Dfile="$WEBRTC_JAR" -DgroupId=dev.onvoid.webrtc \
-            -DartifactId=webrtc-java -Dversion="$VERSION" -Dpackaging=jar -Dclassifier=linux-x86_64
-
-          mkdir -p webrtc-jni/target webrtc-media/target/natives
-          cp "$WEBRTC_JAR" "webrtc-jni/target/webrtc-java-$VERSION-linux-x86_64.jar"
-          (cd webrtc-media/target/natives && "$JAVA_HOME/bin/jar" xf "$GITHUB_WORKSPACE/$MEDIA_JAR" && rm -rf META-INF)
-
-          mvn -B -pl .,webrtc,webrtc-media,webrtc-swing,webrtc-javafx install -DskipNativeBuild -DskipTests
-
+      # natives.dir puts the downloaded native library jar on the class path of
+      # the image, where an application has it, and turns the native build off.
       - name: Build the native image
-        run: mvn -B -pl webrtc-examples -Pnative package
+        env:
+          VERSION: ${{ inputs.version }}
+        run: ./gradlew :webrtc-examples:nativeCompile -Pnatives.dir=natives ${VERSION:+-Pversion=$VERSION}
 
       - name: Run the native image
-        run: timeout 120 webrtc-examples/target/webrtc-native-image-example
+        run: timeout 120 webrtc-examples/build/native/nativeCompile/webrtc-native-image-example

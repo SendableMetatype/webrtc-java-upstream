@@ -20,14 +20,12 @@ updates:
     commit-message:
       prefix: ci
 
-  - package-ecosystem: maven
+  - package-ecosystem: gradle
     directory: "/"
     schedule:
       interval: weekly
     groups:
-      maven-plugins:
-        patterns: ["org.apache.maven.plugins:*", "*-maven-plugin"]
-      maven-dependencies:
+      gradle-dependencies:
         patterns: ["*"]
     commit-message:
       prefix: build

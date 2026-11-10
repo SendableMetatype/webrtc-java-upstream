@@ -12,7 +12,7 @@ runs:
         python -m pip install meson
       shell: powershell
 
-    # The Windows toolchain of the WebRTC branch set in webrtc-jni/pom.xml
+    # The Windows toolchain of the WebRTC branch set in gradle.properties
     # only accepts the SDK pinned by SDK_VERSION in build/vs_toolchain.py of
     # that branch, and gn fails without it. Update it whenever that changes.
     - name: Install the Windows SDK

@@ -1,20 +1,16 @@
-name: 'Maven Publish'
+name: 'Gradle Publish'
 
 description: 'Deploy one version with the native libraries of every platform attached, as a single deployment'
 
-# Expects the checkout of the version to deploy, a JDK whose settings.xml has
-# the "central" server, and MAVEN_USERNAME and MAVEN_TOKEN (plus
-# MAVEN_GPG_PASSPHRASE for a release) in the environment of the calling step.
+# Expects the checkout of the version to deploy, a JDK, Gradle, and
+# MAVEN_USERNAME and MAVEN_TOKEN in the environment of the calling step. A
+# release also has MAVEN_GPG_PRIVATE_KEY and MAVEN_GPG_PASSPHRASE there, which
+# makes the build sign every file.
 
 inputs:
   version:
     description: 'The version to deploy, as the natives jars are named.'
     required: true
-
-  profiles:
-    description: 'Maven profiles to activate, comma separated. "release" adds sources, javadoc and signatures.'
-    required: false
-    default: ''
 
   skip-upload:
     description: 'Build, sign and bundle everything, but upload nothing.'
@@ -31,61 +27,23 @@ runs:
         path: natives
         merge-multiple: true
 
-    - name: Verify that every platform is present
-      env:
-        VERSION: ${{ inputs.version }}
-      run: |
-        status=0
-
-        for classifier in windows-x86_64 windows-aarch64 linux-x86_64 linux-aarch64 \
-                          linux-aarch32 macos-x86_64 macos-aarch64; do
-          if [ ! -f "natives/webrtc-java-$VERSION-$classifier.jar" ]; then
-            echo "::error::Missing native library jar for $classifier"
-            status=1
-          fi
-          if [ ! -f "natives/webrtc-java-media-$VERSION-$classifier.jar" ]; then
-            echo "::error::Missing media native library jar for $classifier"
-            status=1
-          fi
-        done
-
-        exit $status
-      shell: bash
-
-    # The webrtc module depends on its own native library jar for the host
-    # platform. That dependency is normally installed by webrtc-jni, which is kept
-    # out of the reactor here to avoid rebuilding the native libraries.
-    - name: Seed the local repository with the host native library
-      env:
-        VERSION: ${{ inputs.version }}
-      run: |
-        mvn -B install:install-file \
-          -Dfile="natives/webrtc-java-$VERSION-linux-x86_64.jar" \
-          -DgroupId=dev.onvoid.webrtc \
-          -DartifactId=webrtc-java \
-          -Dversion="$VERSION" \
-          -Dclassifier=linux-x86_64 \
-          -Dpackaging=jar \
-          -DgeneratePom=false
-      shell: bash
-
     # natives.dir makes webrtc and webrtc-media attach the jars of all
-    # platforms instead of the host's. skipUpload still stages and bundles the
-    # release, but stops before uploading it.
-    #
-    # Since Maven 3.10, credentials are only sent to the origins of the
-    # repository with the server's id. The server is "central", which is also
-    # the id of Maven Central itself (repo.maven.apache.org), so the token would
-    # be withheld from central.sonatype.com and every upload fails with 401.
-    # credentialScope=id restores matching by id alone.
+    # platforms instead of the host's, and the build fails if one is missing.
+    # A snapshot goes to the snapshot repository, a release into one
+    # deployment of the Central Portal. skip-upload still signs and bundles
+    # the release, into build/nmcp/zip/aggregation.zip, but uploads nothing.
     - name: Deploy
       env:
-        PROFILES: ${{ inputs.profiles }}
+        VERSION: ${{ inputs.version }}
         SKIP_UPLOAD: ${{ inputs.skip-upload }}
-      run: >
-        mvn -B deploy -pl .,webrtc,webrtc-media,webrtc-swing,webrtc-javafx -DskipTests
-        -Dmaven.repository.credentialScope=id
-        ${PROFILES:+-P$PROFILES}
-        -Dnatives.dir="$PWD/natives"
-        -DskipUpload="$SKIP_UPLOAD"
+      run: |
+        if [ "$SKIP_UPLOAD" == "true" ]; then
+          task=nmcpZipAggregation
+        elif [[ "$VERSION" == *-SNAPSHOT ]]; then
+          task=publishAggregationToCentralPortalSnapshots
+        else
+          task=publishAggregationToCentralPortal
+        fi
+
+        ./gradlew "$task" -Pnatives.dir=natives -Pversion="$VERSION"
       shell: bash

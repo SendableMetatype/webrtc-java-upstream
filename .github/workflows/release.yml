@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       releaseVersion:
-        description: "Version to release, such as 1.2.3. Leave empty to release the pom's version without -SNAPSHOT."
+        description: "Version to release, such as 1.2.3. Leave empty to release the version of gradle.properties without -SNAPSHOT."
         required: false
         default: ""
       developmentVersion:
@@ -27,10 +27,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Nothing reaches main before release:prepare has succeeded: the changelog
-  # commit is made locally, release:prepare adds its two commits and the tag on
-  # top, and all of it is pushed in one atomic push at the end. A failure on the
-  # way leaves main untouched, so the release can simply be dispatched again.
+  # Nothing reaches main before the release is prepared: the changelog commit,
+  # the release commit with its tag and the development commit are made
+  # locally, and all of it is pushed in one atomic push at the end. A failure on
+  # the way leaves main untouched, so the release can simply be dispatched again.
   prepare-release:
     name: Prepare release
     if: github.ref == 'refs/heads/main'
@@ -48,17 +48,15 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      # Maven release:prepare needs a named branch, pinned to the dispatched SHA.
       - name: Git config
         run: |
-          git switch -C main
           git config --global user.name "${{ github.actor }}"
           git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
 
-      # The version is the one release:prepare will tag: the releaseVersion input,
-      # or else the pom's version without -SNAPSHOT. git-cliff is told it rather than
-      # bumping from the commit types, so that the changelog, the Maven tag and the
-      # GitHub release always agree.
+      # The version is the one the release is tagged with: the releaseVersion
+      # input, or else the version of gradle.properties without -SNAPSHOT.
+      # git-cliff is told it rather than bumping from the commit types, so that
+      # the changelog, the tag and the GitHub release always agree.
       - name: Determine and check the versions
         id: release-version
         env:
@@ -67,7 +65,7 @@ jobs:
         run: |
           version="$RELEASE_VERSION"
           if [ -z "$version" ]; then
-            version=$(sed -n '0,/<version>/s|.*<version>\([^<]*\)</version>.*|\1|p' pom.xml)
+            version=$(sed -n 's/^version=//p' gradle.properties)
             version="${version%-SNAPSHOT}"
           fi
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -114,37 +112,22 @@ jobs:
           git add CHANGELOG.md docs/.vitepress/versions.ts
           git commit -m "chore(release): Update CHANGELOG.md for $RELEASE_TAG"
 
-      - name: Set up Java
-        uses: actions/setup-java@v6
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      # preparationGoals is "clean validate" instead of the default "clean verify":
-      # verify would compile WebRTC and FFmpeg here, on a runner without their
-      # caches, only for the platform jobs below to build the tagged tree again.
-      #
-      # A dry run transforms the poms and writes release.properties, but creates no
-      # commit and no tag, so there is nothing to push below.
+      # The release commit sets the release version and is tagged; the next
+      # commit moves on to the development version. A dry run creates neither,
+      # so there is nothing to push below.
       - name: Prepare release
+        if: ${{ !inputs.dryRun }}
         env:
+          RELEASE_VERSION: ${{ steps.release-version.outputs.version }}
+          RELEASE_TAG: ${{ steps.release-version.outputs.tag }}
           DEVELOPMENT_VERSION: ${{ inputs.developmentVersion }}
-          EXPECTED_VERSION: ${{ steps.release-version.outputs.version }}
         run: |
-          mvn -B release:prepare -DpushChanges=false \
-            -DpreparationGoals="clean validate" \
-            -DdryRun=${{ inputs.dryRun }} \
-            -DreleaseVersion="$EXPECTED_VERSION" \
-            -DdevelopmentVersion="$DEVELOPMENT_VERSION"
+          sed -i "s/^version=.*/version=$RELEASE_VERSION/" gradle.properties
+          git commit -am "Prepare release $RELEASE_TAG"
+          git tag -a "$RELEASE_TAG" -m "$RELEASE_TAG"
 
-          # Get the release version from the release.properties file
-          RELEASE_VERSION=$(grep "project.rel.dev.onvoid.webrtc\\\:webrtc-java=" release.properties 2>/dev/null | cut -d'=' -f2 || true)
-          echo "Extracted release version from release.properties: ${RELEASE_VERSION:-<none>}"
-
-          if [ "$RELEASE_VERSION" != "$EXPECTED_VERSION" ]; then
-            echo "::error::release:prepare chose version '$RELEASE_VERSION', expected '$EXPECTED_VERSION'"
-            exit 1
-          fi
+          sed -i "s/^version=.*/version=$DEVELOPMENT_VERSION/" gradle.properties
+          git commit -am "Prepare for next development iteration"
 
       # The branch and the tag land together or not at all.
       - name: Push release commits and tag
@@ -182,46 +165,30 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Set up Maven cache
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.m2/repository
-            !~/.m2/repository/dev/onvoid/webrtc
-          key: maven-publish-${{ hashFiles('**/pom.xml') }}
-          restore-keys: maven-publish-
-
       - name: Set up JDK 17
         uses: actions/setup-java@v6
         with:
           java-version: '17'
           distribution: 'temurin'
-          server-id: central
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_TOKEN
-          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
-      - name: Set the release dry-run version
-        env:
-          RELEASE_VERSION: ${{ needs.prepare-release.outputs.release_version }}
-        run: mvn -B versions:set -DnewVersion="$RELEASE_VERSION" -DgenerateBackupPoms=false
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
 
       # Sign and assemble the real release bundle, but never upload it. The
-      # placeholder credentials also prevent publication if skipUpload regresses.
+      # placeholder credentials also prevent publication if skip-upload regresses.
       - name: Deploy
         uses: ./.github/actions/publish
         env:
           MAVEN_USERNAME: dry-run-must-not-upload
           MAVEN_TOKEN: dry-run-must-not-upload
+          MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
         with:
           version: ${{ needs.prepare-release.outputs.release_version }}
-          profiles: release
           skip-upload: true
 
       - name: Verify the dry-run deployment bundle exists
-        run: test -s target/central-publishing/central-bundle.zip
+        run: test -s build/nmcp/zip/aggregation.zip
 
       - name: Summarize what would have been published
         run: |
@@ -230,13 +197,9 @@ jobs:
             echo
             echo "Version: \`${{ needs.prepare-release.outputs.release_version }}\`"
             echo
-            echo "Artifacts destined for the deployment bundle:"
+            echo "Contents of the deployment bundle:"
             echo '```'
-            ls -1 webrtc/target/*.jar webrtc/target/*.asc \
-              webrtc-media/target/*.jar webrtc-media/target/*.asc \
-              webrtc-swing/target/*.jar webrtc-swing/target/*.asc \
-              webrtc-javafx/target/*.jar webrtc-javafx/target/*.asc \
-              natives/*.asc 2>/dev/null || true
+            unzip -Z1 build/nmcp/zip/aggregation.zip
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -244,20 +207,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: deployment-bundle-dry-run
-          path: |
-            target/central-publishing/central-bundle.zip
-            webrtc/target/central-*/**
-            webrtc/target/*.jar
-            webrtc/target/*.asc
-            webrtc-media/target/central-*/**
-            webrtc-media/target/*.jar
-            webrtc-media/target/*.asc
-            webrtc-swing/target/central-*/**
-            webrtc-swing/target/*.jar
-            webrtc-swing/target/*.asc
-            webrtc-javafx/target/central-*/**
-            webrtc-javafx/target/*.jar
-            webrtc-javafx/target/*.asc
-            natives/*.asc
+          path: build/nmcp/zip/aggregation.zip
           if-no-files-found: error
           retention-days: 7

@@ -8,11 +8,7 @@ inputs:
     required: true
 
   classifier:
-    description: 'The Maven classifier of the natives.'
-    required: true
-
-  profile:
-    description: 'The Maven profile that selects the classifier.'
+    description: 'The classifier of the natives.'
     required: true
 
   version:
@@ -94,84 +90,23 @@ runs:
         distribution: ${{ inputs.java-distribution }}
         architecture: ${{ inputs.java-architecture }}
 
-    - name: Set the release dry-run version
-      if: inputs.version != ''
-      env:
-        RELEASE_VERSION: ${{ inputs.version }}
-      run: mvn -B versions:set -DnewVersion="$RELEASE_VERSION" -DgenerateBackupPoms=false
-      shell: bash
+    # Also caches the Gradle distribution and the dependencies.
+    - name: Set up Gradle
+      uses: gradle/actions/setup-gradle@v6
 
-    - name: Install the natives into the local repository
-      run: |
-        # The root pom has no parent, so its first <version> is the project's.
-        # Not sed's 0,/re/ address: that is GNU only, and macOS has BSD sed.
-        VERSION=$(sed -n 's|.*<version>\([^<]*\)</version>.*|\1|p' pom.xml | head -n 1)
-        if [ -z "$VERSION" ]; then
-          echo "Could not read the project version from pom.xml" >&2
-          exit 1
-        fi
-        JAR=$(find natives -name 'webrtc-java-*-${{ inputs.classifier }}.jar' ! -name 'webrtc-java-media-*' | head -n 1)
-        if [ -z "$JAR" ]; then
-          echo "No webrtc-java natives for ${{ inputs.classifier }} in the artifact" >&2
-          exit 1
-        fi
-        echo "Installing $JAR as webrtc-java:$VERSION:${{ inputs.classifier }}"
-        mvn -B -q install:install-file -Dfile="$JAR" -DgroupId=dev.onvoid.webrtc \
-          -DartifactId=webrtc-java -Dversion="$VERSION" -Dpackaging=jar \
-          -Dclassifier=${{ inputs.classifier }}
-      shell: bash
-
-    # Both native libraries go into the directory the media module's tests
-    # already read from, which is where its own build collects them. That is
-    # what puts them on the class path, and it is also what makes the reactor
-    # below work: webrtc-java's natives are a classifier artifact of a module
-    # that is in that reactor, and Maven answers a dependency on such a thing
-    # with the module's output directory, which holds no native library at
-    # all. Coming from a directory instead, they are simply found.
-    - name: Unpack the natives where the tests look for them
-      run: |
-        MEDIA_JAR=$(find natives -name 'webrtc-java-media-*-${{ inputs.classifier }}.jar' | head -n 1)
-        WEBRTC_JAR=$(find natives -name 'webrtc-java-*-${{ inputs.classifier }}.jar' ! -name 'webrtc-java-media-*' | head -n 1)
-
-        if [ -z "$MEDIA_JAR" ]; then
-          echo "No webrtc-java-media natives for ${{ inputs.classifier }} in the artifact" >&2
-          exit 1
-        fi
-
-        MEDIA_JAR="$PWD/$MEDIA_JAR"
-        WEBRTC_JAR="$PWD/$WEBRTC_JAR"
-
-        mkdir -p webrtc-media/target/natives
-        cd webrtc-media/target/natives
-        # jar rather than unzip: the JDK is set up above, and unzip is not on
-        # every runner image.
-        "$JAVA_HOME/bin/jar" xf "$MEDIA_JAR"
-        "$JAVA_HOME/bin/jar" xf "$WEBRTC_JAR"
-        rm -rf META-INF
-        ls -l
-        cd - > /dev/null
-
-        # The Swing module's tests need only webrtc-java's natives, and read
-        # them from a directory of the same name for the same reason.
-        mkdir -p webrtc-swing/target/natives
-        cd webrtc-swing/target/natives
-        "$JAVA_HOME/bin/jar" xf "$WEBRTC_JAR"
-        rm -rf META-INF
-        ls -l
-      shell: bash
-
-    # One reactor for all, so that webrtc-java-media and webrtc-java-swing
-    # resolve webrtc-java from it. The Swing view paints into images, which
-    # needs no display. Testing rather than installing: webrtc attaches the host
-    # natives from webrtc-jni/target during its package phase, and on a runner
-    # that only downloaded them there is no such directory.
-    #
-    # The native build is off: these natives were cross compiled by another
-    # job, and this runner is here to run them, not to build them again.
+    # The Swing view paints into images, which needs no display. natives.dir
+    # puts the downloaded natives on the class path of the tests and turns the
+    # native build off: these natives were cross compiled by another job, and
+    # this runner is here to run them, not to build them again.
     - name: Test
-      run: mvn -B -pl webrtc,webrtc-media,webrtc-swing test -DskipNativeBuild -P${{ inputs.profile }} -Dsurefire.timeout=1800
-      shell: bash
       if: inputs.jni-check != 'true'
+      env:
+        VERSION: ${{ inputs.version }}
+      run: >
+        ./gradlew :webrtc:test :webrtc-media:test :webrtc-swing:test --continue
+        -Pnatives.dir=natives -Pwebrtc.platform=${{ inputs.classifier }}
+        ${VERSION:+-Pversion=$VERSION}
+      shell: bash
 
     # The same tests under -Xcheck:jni, which checks every JNI call of the
     # natives: a fatal error ends the test JVM, and a call made without
@@ -182,13 +117,16 @@ runs:
     # come from and fails on any, so that a missing check cannot creep back in.
     - name: Test under -Xcheck:jni
       if: inputs.jni-check == 'true'
+      env:
+        VERSION: ${{ inputs.version }}
       run: |
         status=0
-        mvn -B -pl webrtc,webrtc-media test -DskipNativeBuild -P${{ inputs.profile }} -Pjni-check \
-          -Dsurefire.timeout=1800 > jni-check.log 2>&1 || status=$?
+        ./gradlew :webrtc:test :webrtc-media:test --continue -Pjni-check \
+          -Pnatives.dir=natives -Pwebrtc.platform=${{ inputs.classifier }} \
+          ${VERSION:+-Pversion=$VERSION} > jni-check.log 2>&1 || status=$?
 
-        # What Maven reported about the tests, which went to the file as well.
-        grep -E '^\[(INFO|WARNING|ERROR)\] (Tests run:|BUILD|Reactor Summary)|^\[ERROR\]' jni-check.log | tail -n 200 || true
+        # What Gradle reported about the tests, which went to the file as well.
+        grep -E 'tests completed|FAILED|BUILD (SUCCESSFUL|FAILED)' jni-check.log | tail -n 200 || true
 
         bash "$GITHUB_ACTION_PATH/jni-check-report.sh" jni-check.log 0 || status=1
 
@@ -206,7 +144,8 @@ runs:
         # Under -Xcheck:jni, the first of its diagnostics with their stacks,
         # rather than the whole log.
         path: |
-          **/target/surefire-reports/
+          **/build/reports/tests/
+          **/build/test-results/
           **/hs_err_pid*.log
           jni-check-excerpt.txt
         if-no-files-found: ignore
